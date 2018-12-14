@@ -112,10 +112,12 @@ function ipset_insync_common() {
   local id=$1
   local pfx=$2
 
-
   # compare configured and runtime config
   tf=$(mktemp)
-  diff <(get_ipset_dump ${id} | grep ^${pfx}) <(construct_ipset_dump ${id} | grep ^${pfx}) > ${tf}
+  diff \
+    <(get_ipset_dump ${id}       | grep ^${pfx} | sed 's/hashsize [0-9]\+ //g') \
+    <(construct_ipset_dump ${id} | grep ^${pfx} | sed 's/hashsize [0-9]\+ //g') \
+    > ${tf}
   local rv=$?
 
   # show differences, if requested by CLI option
@@ -191,6 +193,14 @@ if ipset_exists ${set_id}; then
 
     # drop the old one
     ipset destroy ${set_id}
+
+    # there is big chance the set is already used by iptables
+    # and cannot be destroyed
+    # we cannot do anything about this
+    if [ $? -ne 0 ]; then
+      # indicate unrecoverable problem
+      exit 10
+    fi
 
     # create it with content as expected
     import_ipset ${set_id} ${set_id} ${ignore_contents}
